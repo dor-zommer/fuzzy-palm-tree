@@ -2,18 +2,21 @@
   "use strict";
 
   const MAX_SELECT = 4;
+  const RECENT_GROUPS_LIMIT = 16;
+  const BEST_LEVEL_KEY = "what-connection:best-level";
 
   const state = {
-    difficulty: "medium",
-    puzzle: null,
-    tiles: [],
+    level: 1,
+    bestLevel: 0,
+    puzzle: null,            // [{difficulty, category, words, _ref}, ...]
+    tiles: [],               // [{word, group}, ...]
     solvedGroups: [],
-    selected: new Set(),
+    selected: new Set(),     // indices into tiles
     attemptsLeft: 0,
     maxAttempts: 0,
     gameOver: false,
-    hintShown: false,
-    revealedHints: new Set()
+    revealedHints: new Set(),// words
+    recentGroupRefs: []      // queue of recently used group refs
   };
 
   const els = {
@@ -34,9 +37,27 @@
     endTitle: document.getElementById("end-title"),
     endMessage: document.getElementById("end-message"),
     endSummary: document.getElementById("end-summary"),
-    playAgainBtn: document.getElementById("play-again-btn"),
-    diffButtons: document.querySelectorAll(".diff-btn")
+    playAgainBtn: document.getElementById("play-again-btn")
   };
+
+  function loadBestLevel() {
+    try {
+      const raw = localStorage.getItem(BEST_LEVEL_KEY);
+      const n = raw ? parseInt(raw, 10) : 0;
+      state.bestLevel = Number.isFinite(n) && n > 0 ? n : 0;
+    } catch (_) {
+      state.bestLevel = 0;
+    }
+  }
+
+  function saveBestLevel() {
+    try {
+      if (state.level > state.bestLevel) {
+        state.bestLevel = state.level;
+        localStorage.setItem(BEST_LEVEL_KEY, String(state.bestLevel));
+      }
+    } catch (_) { /* ignore */ }
+  }
 
   function shuffle(arr) {
     const a = arr.slice();
@@ -47,10 +68,6 @@
     return a;
   }
 
-  function pickRandom(arr) {
-    return arr[Math.floor(Math.random() * arr.length)];
-  }
-
   function classifyLength(word) {
     const len = word.length;
     if (len >= 9) return "xlong";
@@ -58,40 +75,52 @@
     return "short";
   }
 
-  function startGame(difficulty) {
-    state.difficulty = difficulty;
-    const pool = PUZZLES[difficulty];
-    const puzzle = pickRandom(pool);
-    state.puzzle = puzzle;
+  function levelTierLabel(level) {
+    if (level <= 2) return "קל";
+    if (level <= 5) return "בינוני";
+    if (level <= 9) return "קשה";
+    return "מומחה";
+  }
+
+  function rememberGroups(groups) {
+    groups.forEach(g => state.recentGroupRefs.push(g._ref));
+    while (state.recentGroupRefs.length > RECENT_GROUPS_LIMIT) {
+      state.recentGroupRefs.shift();
+    }
+  }
+
+  function startLevel(level) {
+    state.level = level;
+    state.maxAttempts = attemptsForLevel(level);
+    state.attemptsLeft = state.maxAttempts;
     state.solvedGroups = [];
     state.selected.clear();
-    state.maxAttempts = ATTEMPTS_BY_DIFF[difficulty];
-    state.attemptsLeft = state.maxAttempts;
     state.gameOver = false;
-    state.hintShown = false;
     state.revealedHints = new Set();
 
+    const avoid = new Set(state.recentGroupRefs);
+    state.puzzle = composePuzzle(avoid);
+    rememberGroups(state.puzzle);
+
     const allWords = [];
-    puzzle.groups.forEach(g => {
+    state.puzzle.forEach(g => {
       g.words.forEach(w => allWords.push({ word: w, group: g }));
     });
     state.tiles = shuffle(allWords);
 
-    els.metaAuthor.textContent = puzzle.author || "";
-    els.metaDiff.textContent = DIFFICULTY_NAMES[difficulty];
+    els.metaAuthor.textContent = `שלב ${state.level}`;
+    els.metaDiff.textContent = levelTierLabel(state.level);
     els.message.textContent = "";
 
-    updateDiffButtons();
     renderSolved();
     renderBoard();
     renderAttempts();
     updateButtons();
   }
 
-  function updateDiffButtons() {
-    els.diffButtons.forEach(btn => {
-      btn.classList.toggle("active", btn.dataset.diff === state.difficulty);
-    });
+  function startNewRun() {
+    state.recentGroupRefs = [];
+    startLevel(1);
   }
 
   function renderSolved() {
@@ -141,7 +170,7 @@
     const hasSelection = state.selected.size > 0;
     els.submitBtn.disabled = state.gameOver || state.selected.size !== MAX_SELECT;
     els.clearBtn.disabled = state.gameOver || !hasSelection;
-    els.shuffleBtn.disabled = state.gameOver;
+    els.shuffleBtn.disabled = state.gameOver || state.tiles.length === 0;
     const hardestSolved = state.solvedGroups.some(g => g.difficulty === 4);
     els.hintBtn.disabled = state.gameOver || hardestSolved || state.revealedHints.size >= 2;
   }
@@ -220,19 +249,16 @@
       updateButtons();
 
       if (state.solvedGroups.length === 4) {
-        endGame(true);
+        completeLevel();
       } else {
         showMessage("יפה! קבוצה נכונה");
       }
     } else {
-      // Check if "one away"
       const counts = {};
       groups.forEach(g => {
-        const key = g.category;
-        counts[key] = (counts[key] || 0) + 1;
+        counts[g.category] = (counts[g.category] || 0) + 1;
       });
-      const max = Math.max(...Object.values(counts));
-      const oneAway = max === 3;
+      const oneAway = Math.max(...Object.values(counts)) === 3;
 
       shakeSelected();
       state.attemptsLeft--;
@@ -240,7 +266,7 @@
       showMessage(oneAway ? "כמעט! חסרה מילה אחת" : "לא נכון");
 
       if (state.attemptsLeft <= 0) {
-        endGame(false);
+        endRun();
       }
       updateButtons();
     }
@@ -248,7 +274,7 @@
 
   function showHint() {
     if (state.gameOver) return;
-    const hardest = state.puzzle.groups.find(g => g.difficulty === 4);
+    const hardest = state.puzzle.find(g => g.difficulty === 4);
     if (!hardest) return;
     if (state.solvedGroups.includes(hardest)) return;
 
@@ -266,25 +292,34 @@
     }
   }
 
-  function endGame(won) {
+  function completeLevel() {
+    saveBestLevel();
+    showMessage(`שלב ${state.level} הושלם! עוברים לשלב ${state.level + 1}…`, 1400);
+    const nextLevel = state.level + 1;
+    setTimeout(() => startLevel(nextLevel), 1300);
+  }
+
+  function endRun() {
     state.gameOver = true;
-    if (!won) {
-      // Auto-reveal remaining groups
-      const solvedSet = new Set(state.solvedGroups);
-      state.puzzle.groups
-        .filter(g => !solvedSet.has(g))
-        .sort((a, b) => a.difficulty - b.difficulty)
-        .forEach(g => state.solvedGroups.push(g));
-      state.tiles = [];
-      renderSolved();
-      renderBoard();
-    }
+    saveBestLevel();
+
+    // Auto-reveal remaining groups
+    const solvedSet = new Set(state.solvedGroups);
+    state.puzzle
+      .filter(g => !solvedSet.has(g))
+      .sort((a, b) => a.difficulty - b.difficulty)
+      .forEach(g => state.solvedGroups.push(g));
+    state.tiles = [];
+    renderSolved();
+    renderBoard();
     updateButtons();
 
-    els.endTitle.textContent = won ? "כל הכבוד!" : "ניסיון יפה";
-    els.endMessage.textContent = won
-      ? `פתרת את הלוח עם ${state.attemptsLeft} ניסיונות שנותרו.`
-      : "המילים והקבוצות הנכונות מוצגות למטה.";
+    els.endTitle.textContent = "סוף הריצה";
+    const reachedTxt = `הגעת לשלב ${state.level}.`;
+    const bestTxt = state.bestLevel > 0
+      ? ` שיא אישי: שלב ${state.bestLevel}.`
+      : "";
+    els.endMessage.textContent = reachedTxt + bestTxt;
 
     els.endSummary.innerHTML = "";
     state.solvedGroups
@@ -306,32 +341,26 @@
     setTimeout(() => openModal(els.endModal), 600);
   }
 
-  function openModal(modal) {
-    modal.hidden = false;
-  }
+  function openModal(modal) { modal.hidden = false; }
+  function closeModal(modal) { modal.hidden = true; }
 
-  function closeModal(modal) {
-    modal.hidden = true;
-  }
-
-  // Event wiring
+  // Wiring
   els.submitBtn.addEventListener("click", submitGuess);
   els.clearBtn.addEventListener("click", clearSelection);
   els.shuffleBtn.addEventListener("click", shuffleBoard);
   els.hintBtn.addEventListener("click", showHint);
   els.helpBtn.addEventListener("click", () => openModal(els.helpModal));
   els.backBtn.addEventListener("click", () => {
-    if (confirm("להתחיל לוח חדש?")) startGame(state.difficulty);
+    if (confirm("להתחיל ריצה חדשה משלב 1?")) startNewRun();
   });
   els.playAgainBtn.addEventListener("click", () => {
     closeModal(els.endModal);
-    startGame(state.difficulty);
+    startNewRun();
   });
 
   document.querySelectorAll("[data-close]").forEach(btn => {
     btn.addEventListener("click", () => {
-      const id = btn.dataset.close;
-      closeModal(document.getElementById(id));
+      closeModal(document.getElementById(btn.dataset.close));
     });
   });
 
@@ -341,16 +370,7 @@
     });
   });
 
-  els.diffButtons.forEach(btn => {
-    btn.addEventListener("click", () => {
-      const diff = btn.dataset.diff;
-      if (diff === state.difficulty && !state.gameOver) {
-        if (!confirm("להתחיל לוח חדש בקושי זה?")) return;
-      }
-      startGame(diff);
-    });
-  });
-
   // Boot
-  startGame("medium");
+  loadBestLevel();
+  startLevel(1);
 })();

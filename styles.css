@@ -302,30 +302,6 @@ button {
   transform: scale(0.85);
 }
 
-/* Difficulty selector */
-.difficulty-selector {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  padding: 14px 0 4px;
-  border-top: 1px solid var(--divider);
-  margin-top: 12px;
-}
-
-.diff-btn {
-  padding: 8px 16px;
-  border-radius: 999px;
-  background: var(--action-bg);
-  color: var(--muted);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.diff-btn.active {
-  background: var(--fg);
-  color: #000;
-}
-
 /* Modals */
 .modal {
   position: fixed;
