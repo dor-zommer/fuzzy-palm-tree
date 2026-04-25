@@ -14,6 +14,8 @@
     selected: new Set(),     // indices into tiles
     attemptsLeft: 0,
     maxAttempts: 0,
+    hintsLeft: 0,
+    maxHints: 0,
     gameOver: false,
     revealedHints: new Set(),// words
     recentGroupRefs: []      // queue of recently used group refs
@@ -79,7 +81,9 @@
     if (level <= 2) return "קל";
     if (level <= 5) return "בינוני";
     if (level <= 9) return "קשה";
-    return "מומחה";
+    if (level <= 14) return "מאתגר";
+    if (level <= 19) return "מומחה";
+    return "אגדה";
   }
 
   function rememberGroups(groups) {
@@ -99,8 +103,11 @@
     state.revealedHints = new Set();
 
     const avoid = new Set(state.recentGroupRefs);
-    state.puzzle = composePuzzle(avoid);
+    state.puzzle = composePuzzle(level, avoid);
     rememberGroups(state.puzzle);
+
+    state.maxHints = hintsForLevel(level);
+    state.hintsLeft = state.maxHints;
 
     const allWords = [];
     state.puzzle.forEach(g => {
@@ -172,7 +179,7 @@
     els.clearBtn.disabled = state.gameOver || !hasSelection;
     els.shuffleBtn.disabled = state.gameOver || state.tiles.length === 0;
     const hardestSolved = state.solvedGroups.some(g => g.difficulty === 4);
-    els.hintBtn.disabled = state.gameOver || hardestSolved || state.revealedHints.size >= 2;
+    els.hintBtn.disabled = state.gameOver || hardestSolved || state.hintsLeft <= 0;
   }
 
   function onTileClick(idx) {
@@ -263,7 +270,8 @@
       shakeSelected();
       state.attemptsLeft--;
       renderAttempts();
-      showMessage(oneAway ? "כמעט! חסרה מילה אחת" : "לא נכון");
+      const tellOneAway = oneAway && showOneAwayForLevel(state.level);
+      showMessage(tellOneAway ? "כמעט! חסרה מילה אחת" : "לא נכון");
 
       if (state.attemptsLeft <= 0) {
         endRun();
@@ -274,6 +282,7 @@
 
   function showHint() {
     if (state.gameOver) return;
+    if (state.hintsLeft <= 0) return;
     const hardest = state.puzzle.find(g => g.difficulty === 4);
     if (!hardest) return;
     if (state.solvedGroups.includes(hardest)) return;
@@ -282,14 +291,13 @@
       state.tiles.some(t => t.word === w)
     );
     const notRevealed = onBoard.filter(w => !state.revealedHints.has(w));
-    const need = Math.max(0, 2 - state.revealedHints.size);
-    const toReveal = shuffle(notRevealed).slice(0, need);
-    toReveal.forEach(w => state.revealedHints.add(w));
+    if (notRevealed.length === 0) return;
+    const reveal = shuffle(notRevealed)[0];
+    state.revealedHints.add(reveal);
+    state.hintsLeft--;
     renderBoard();
     updateButtons();
-    if (toReveal.length > 0) {
-      showMessage("נחשפו רמזים בקבוצה האדומה");
-    }
+    showMessage("נחשפה מילה מהקבוצה האדומה");
   }
 
   function completeLevel() {
