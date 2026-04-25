@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#000000">
+  <title>מה הקשר?</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <button class="icon-btn back-btn" id="back-btn" aria-label="חזור">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+      <h1 class="title">מה הקשר?</h1>
+      <button class="icon-btn help-btn" id="help-btn" aria-label="עזרה">?</button>
+    </header>
+
+    <div class="subtitle-wrap">
+      <h2 class="subtitle">חברו ארבע קבוצות של ארבע</h2>
+      <p class="meta">
+        <span class="author" id="meta-author"></span>
+        <span class="separator">|</span>
+        <span class="difficulty-name" id="meta-diff"></span>
+      </p>
+    </div>
+
+    <div class="board-wrap">
+      <div class="solved" id="solved"></div>
+      <div class="board" id="board"></div>
+    </div>
+
+    <div class="message" id="message" aria-live="polite"></div>
+
+    <div class="actions">
+      <button class="action-btn" id="hint-btn" aria-label="רמז">
+        <span class="bubble">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 21h6v-1H9v1zm3-19a7 7 0 0 0-4 12.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26A7 7 0 0 0 12 2z"/></svg>
+        </span>
+        <span class="label">רמז</span>
+      </button>
+      <button class="action-btn" id="shuffle-btn" aria-label="ערבוב">
+        <span class="bubble">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
+        </span>
+        <span class="label">ערבוב</span>
+      </button>
+      <button class="action-btn" id="clear-btn" aria-label="ניקוי לוח">
+        <span class="bubble">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+        </span>
+        <span class="label">ניקוי לוח</span>
+      </button>
+      <button class="action-btn submit" id="submit-btn" aria-label="אישור">
+        <span class="bubble">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        </span>
+        <span class="label">אישור</span>
+      </button>
+    </div>
+
+    <div class="attempts">
+      <span class="attempts-label">ניסיונות:</span>
+      <div class="dots" id="attempts-dots"></div>
+    </div>
+
+    <div class="difficulty-selector">
+      <button data-diff="easy" class="diff-btn">קל</button>
+      <button data-diff="medium" class="diff-btn">בינוני</button>
+      <button data-diff="hard" class="diff-btn">קשה</button>
+    </div>
+  </div>
+
+  <div class="modal" id="help-modal" hidden>
+    <div class="modal-content">
+      <button class="modal-close" data-close="help-modal" aria-label="סגור">×</button>
+      <h2>איך משחקים?</h2>
+      <p>על הלוח מוצגות 16 מילים. עליכם לחלק אותן לארבע רביעיות בעלות מכנה משותף. קבצו כל רביעיה באמצעות סימון המילים ולחיצה על 'אישור'. אם צדקתם, הרביעיה תיצבע ותופרד משאר המילים.</p>
+      <p>המשחק כולל שלוש דרגות קושי. סיווג הלוח (קל/בינוני/קשה) נקבע לפי אחוז ההצלחה של השחקנים.</p>
+      <p class="hint-row">
+        <span class="hint-icon">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 21h6v-1H9v1zm3-19a7 7 0 0 0-4 12.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26A7 7 0 0 0 12 2z"/></svg>
+        </span>
+        בלחיצה על כפתור הרמז, ייחשפו 2 מ-4 המילים של הרביעייה המאתגרת (אדומה).
+      </p>
+      <div class="legend">
+        <div class="legend-bars">
+          <div class="legend-bar" style="background:#B5E3B0"></div>
+          <div class="legend-bar" style="background:#F2DA5A"></div>
+          <div class="legend-bar" style="background:#F4A93D"></div>
+          <div class="legend-bar" style="background:#F08080"></div>
+        </div>
+        <p>צבעי הרביעיות: מהפשוטה ביותר (ירוק) עד המאתגרת ביותר (אדום)</p>
+      </div>
+      <h3>בהצלחה!</h3>
+    </div>
+  </div>
+
+  <div class="modal" id="end-modal" hidden>
+    <div class="modal-content">
+      <button class="modal-close" data-close="end-modal" aria-label="סגור">×</button>
+      <h2 id="end-title"></h2>
+      <p id="end-message"></p>
+      <div class="end-summary" id="end-summary"></div>
+      <button class="primary-btn" id="play-again-btn">משחק חדש</button>
+    </div>
+  </div>
+
+  <script src="js/puzzles.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
